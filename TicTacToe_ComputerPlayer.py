@@ -3,6 +3,8 @@ import random
 # global
 board = []
 piece = "x"
+player_piece = ""
+ai_piece = ""
 turn = 1
 move_row = -1
 move_col = -1
@@ -12,16 +14,27 @@ last_row = -1
 last_col = -1
 
 def main():
+    choose_piece()
     setup()
     print_board()
     make_move()
-    
-
     while not winner() and not tie():
         change_piece()
         print_board()
         make_move()
 
+def choose_piece():
+    global player_piece
+    global ai_piece
+    player_piece = input("welcome to AI tic tac toe! choose your piece: x or o\n").lower()
+    while player_piece != "x" and player_piece != "o":
+        player_piece = input("error! choose your piece: x or o\n").lower()
+
+    if player_piece == "x":
+        ai_piece = "o"
+    else:
+        ai_piece = "x"
+    
 def setup():
     for i in range(3):
         row = []
@@ -76,6 +89,7 @@ def change_piece():
         piece = "o"
 
 def make_move():
+    global player_piece
     global move_row
     global move_col
     global comp_move_row
@@ -84,9 +98,7 @@ def make_move():
     global last_col
     global turn
     print(piece + "'s turn")
-
-    # human player is o
-    if piece == "o":
+    if piece == player_piece:
         move_row = int(input("Enter row: "))
         move_col = int(input("Enter col: "))
 
@@ -98,36 +110,52 @@ def make_move():
         board[move_row][move_col] = piece
         last_row = move_row
         last_col = move_col
-
     else:
         comp_move_row, comp_move_col = ai_turn()
-        print(comp_move_row, comp_move_col)
         board[comp_move_row][comp_move_col] = piece
         last_row = comp_move_row
         last_col = comp_move_col
-
     turn += 1
 
-    # board[move_row][move_col] = piece
-
 def ai_turn():
+    global ai_piece
+    corner = [(0, 0), (0, 2), (2, 0), (2, 2)]
+    edge = [(0, 1), (1, 0), (1, 2), (2, 1)]
+
+    # hard code cases
+    if ai_piece == "o":
+        if turn == 2:
+            if move_row == 1 and move_col == 1:
+                move = random.choice(corner)
+                return move[0], move[1]
+            else:
+                return 1, 1
+        if turn == 4:
+            # if either diagonal is xox, AI cannot prevent fork. must go for edge to initiate attack in order to draw
+            if board[0][0] == "x" and board[2][2] == "x" or board[0][2] == "x" and board[2][0] == "x":
+                move = random.choice(edge)
+                return move[0], move[1]
+
     # 1. check if can win
-    candidate_row, candidate_col = win_or_block("x", "o", comp_move_row, comp_move_col)
+    candidate_row, candidate_col = win_or_block(ai_piece, player_piece, comp_move_row, comp_move_col)
     if (candidate_row != -1):
         return candidate_row, candidate_col
 
     # 2. check if need to block
-    candidate_row, candidate_col = win_or_block("o", "x", move_row, move_col)
+    candidate_row, candidate_col = win_or_block(player_piece, ai_piece, move_row, move_col)
     if (candidate_row != -1):
         return candidate_row, candidate_col
     
     # 3. check for forking move
-    candidate_row, candidate_col = check_fork()
+    candidate_row, candidate_col = check_fork(ai_piece, player_piece)
     if (candidate_row != -1):
         return candidate_row, candidate_col
     
     # 4. prevent opponent fork
-
+    candidate_row, candidate_col = check_fork(player_piece, ai_piece)
+    if (candidate_row != -1):
+        return candidate_row, candidate_col
+    
     # 5. random move
     x = random.randint(0, 2)
     y = random.randint(0, 2)
@@ -135,8 +163,6 @@ def ai_turn():
         x = random.randint(0, 2)
         y = random.randint(0, 2)
     return x, y
-
-
 
 def win_or_block(target_piece, other_piece, last_row, last_col):
     row = -1
@@ -194,53 +220,67 @@ def win_or_block(target_piece, other_piece, last_row, last_col):
     
     return row, col
 
-def check_fork():
+def check_fork(target_piece, other_piece):
+    # iterate through every square and check if placing target piece there is a fork
     for i in range(3):
         for j in range(3):
+            # consider only empty spaces
+            if board[i][j] != "_":
+                continue
+
             win_count = 0
 
+            # check row for potential fork
             count = 0
+            valid = True
             for k in range(3):
-                if board[i][k] == "x":
+                if board[i][k] == target_piece:
                     count += 1
-                elif board[i][k] == "o":
+                elif board[i][k] == other_piece:
+                    # fork does not satisfy since possible win is interrupted by opponent piece
+                    valid = False
                     break
-            if count == 1:
+            if count == 1 and valid:
+                win_count += 1
+
+            # check col for potential fork
+            count = 0
+            valid = True
+            for k in range(3):
+                if board[k][j] == target_piece:
+                    count += 1
+                elif board[k][j] == other_piece:
+                    valid = False
+                    break
+            if count == 1 and valid:
                 win_count += 1
             
-            count = 0
-            for k in range(3):
-                if board[k][j] == "x":
-                    count += 1
-                elif board[k][j] == "o":
-                    break
-            if count == 1:
-                win_count += 1
-            
-            # check diagonal win case only if last move is on diagonal
-            if (last_row + last_col) % 2 == 0:
+            # check diagonal
+            if i == j:
                 count = 0
+                valid = True
                 for k in range(3):
-                    if board[k][k] == "x":
+                    if board[k][k] == target_piece:
                         count += 1
-                    elif board[k][k] == "o":
+                    elif board[k][k] == other_piece:
+                        valid = False
                         break
-                if count == 1:
+                if count == 1 and valid:
                     win_count += 1
-                
+            if i + j == 2:
                 count = 0
+                valid = True
                 for k in range(3):
-                    if board[k][2 - k] == "x":
+                    if board[k][2 - k] == target_piece:
                         count += 1
-                    elif board[k][2 - k] == "o":
+                    elif board[k][2 - k] == other_piece:
+                        valid = False
                         break
-                if count == 1:
+                if count == 1 and valid:
                     win_count += 1
                     
-            
             if win_count == 2:
                 return i, j
     return -1, -1
-
 
 main()
